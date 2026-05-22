@@ -14,8 +14,8 @@ import subprocess, sys, os
 from pathlib import Path
 
 # Clone repo (ganti dengan repo URL kamu nanti)
-repo_url = "https://github.com/username/rust-engine.git"
-repo_dir = Path("/content/rust-engine")
+repo_url = "https://github.com/ZulferDev/rust-engine.git"
+repo_dir = Path("/content/rust-engine/python")
 
 if not repo_dir.exists():
     print("Cloning repository...")
