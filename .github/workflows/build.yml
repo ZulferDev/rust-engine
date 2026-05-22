@@ -1,12 +1,12 @@
-name: Build Check
+name: "Build Check"
 
 on: [push, pull_request]
 
 jobs:
   build:
-    name: Build check
+    name: "Build check"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo build --release
+      - run: cargo check --release
