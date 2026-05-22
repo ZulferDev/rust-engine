@@ -10,21 +10,13 @@ Atau jalankan langsung:
 """
 
 # ──────────────────── CELL 1: Install ────────────────────
-import subprocess, sys, os
-from pathlib import Path
+import subprocess, sys
 
-# Clone repo (ganti dengan repo URL kamu nanti)
-repo_url = "https://github.com/ZulferDev/rust-engine.git"
-repo_dir = Path("/content/rust-engine/python")
-
-if not repo_dir.exists():
-    print("Cloning repository...")
-    subprocess.run(["git", "clone", repo_url, str(repo_dir)], check=True)
-
-os.chdir(repo_dir)
-
-# Install Python package (akan trigger build Rust engine)
-subprocess.run([sys.executable, "-m", "pip", "install", "-e", "./python"], check=True)
+# Install langsung dari GitHub (binary pre-built akan di-download otomatis)
+subprocess.run([
+    sys.executable, "-m", "pip", "install",
+    "git+https://github.com/ZulferDev/rust-engine.git",
+], check=True)
 
 # ──────────────────── CELL 2: Import ────────────────────
 from rust_backtest import run

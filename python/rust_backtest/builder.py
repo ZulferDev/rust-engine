@@ -1,10 +1,29 @@
 import subprocess
 import sys
 import os
+import urllib.request
+import json
+import shutil
 from pathlib import Path
 
 
 _engine_path: str | None = None
+CACHE_DIR = Path.home() / ".cache" / "rust_backtest"
+
+
+def _detect_target() -> str:
+    import platform
+    machine = platform.machine()
+    if machine == "x86_64":
+        return "x86_64-unknown-linux-musl"
+    elif machine in ("aarch64", "arm64"):
+        return "aarch64-unknown-linux-musl"
+    return f"{machine}-unknown-linux-musl"
+
+
+def _get_cached_path(target: str) -> Path:
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    return CACHE_DIR / f"backtest_engine-{target}"
 
 
 def get_engine_path(force_rebuild: bool = False) -> str:
@@ -14,21 +33,68 @@ def get_engine_path(force_rebuild: bool = False) -> str:
         return _engine_path
 
     package_root = Path(__file__).resolve().parent.parent.parent
+    target = _detect_target()
 
-    candidates = [
-        package_root / "target" / "x86_64-unknown-linux-musl" / "release" / "backtest_engine",
+    cand_bin = _get_cached_path(target)
+    if cand_bin.exists():
+        _engine_path = str(cand_bin)
+        return _engine_path
+
+    for p in [
+        package_root / "target" / target / "release" / "backtest_engine",
         package_root / "target" / "release" / "backtest_engine",
-    ]
-    for p in candidates:
+    ]:
         if p.exists():
             _engine_path = str(p)
             return _engine_path
 
+    path = _download(target)
+    if path:
+        _engine_path = path
+        return _engine_path
+
     return _build(package_root)
 
 
+def _download(target: str) -> str | None:
+    from importlib.metadata import version as pkg_version
+    try:
+        ver = pkg_version("rust-backtest")
+    except Exception:
+        ver = "v0.2.0"
+    if not ver.startswith("v"):
+        ver = f"v{ver}"
+
+    cache_path = _get_cached_path(target)
+    url = f"https://github.com/ZulferDev/rust-engine/releases/download/{ver}/backtest_engine-{target}"
+
+    print(f"Downloading pre-built engine ({target})...")
+    sys.stdout.flush()
+
+    try:
+        urllib.request.urlretrieve(url, cache_path)
+        cache_path.chmod(0o755)
+        print("Download complete.")
+        return str(cache_path)
+    except Exception:
+        pass
+
+    url_latest = (
+        "https://github.com/ZulferDev/rust-engine/releases/latest/download/"
+        f"backtest_engine-{target}"
+    )
+    try:
+        urllib.request.urlretrieve(url_latest, cache_path)
+        cache_path.chmod(0o755)
+        print("Download complete.")
+        return str(cache_path)
+    except Exception:
+        return None
+
+
 def _build(root: Path) -> str:
-    print("Building Rust backtest engine...")
+    print("Building Rust backtest engine from source...")
+    print("(this takes ~2-3 minutes on first run)")
     sys.stdout.flush()
 
     _ensure_rust()
@@ -46,10 +112,11 @@ def _build(root: Path) -> str:
             print("Build complete.")
             return _engine_path
 
-    musl_bin = root / "target" / "x86_64-unknown-linux-musl" / "release" / "backtest_engine"
+    target = _detect_target()
+    musl_bin = root / "target" / target / "release" / "backtest_engine"
     if musl_bin.exists():
         _engine_path = str(musl_bin)
-        print("Build complete (musl).")
+        print("Build complete.")
         return _engine_path
 
     raise RuntimeError(
