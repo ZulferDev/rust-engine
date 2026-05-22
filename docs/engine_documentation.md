@@ -6,9 +6,9 @@ Backtest engine cepat untuk validasi strategi trading. Core loop ditulis dalam *
 
 - [Arsitektur](#arsitektur)
 - [Instalasi](#instalasi)
-  - [pip install](#pip-install)
+  - [pip install dari GitHub](#pip-install-dari-github)
   - [Google Colab / Kaggle](#google-colab--kaggle)
-  - [Manual](#manual)
+  - [Developer Setup](#developer-setup)
 - [Data Format](#data-format)
   - [Kolom Wajib](#kolom-wajib)
   - [Timestamp](#timestamp)
@@ -32,6 +32,7 @@ Backtest engine cepat untuk validasi strategi trading. Core loop ditulis dalam *
 - [Configuration](#configuration)
 - [Komisi & Slippage](#komisi--slippage)
 - [Performance](#performance)
+- [Pre-built Binary](#pre-built-binary)
 - [Limitations](#limitations)
 - [Changelog](#changelog)
 
@@ -48,7 +49,7 @@ Backtest engine cepat untuk validasi strategi trading. Core loop ditulis dalam *
 └─────────────────────┘                      └──────────────────────┘
 ```
 
-- **Python** handle: persiapan data,生成 sinyal, visualisasi
+- **Python** handle: persiapan data, generating sinyal, visualisasi
 - **Rust** handle: iterasi bar-by-bar tercepat, TP/SL checking
 - Komunikasi via file CSV (input) dan JSON (output)
 
@@ -64,45 +65,46 @@ Backtest engine cepat untuk validasi strategi trading. Core loop ditulis dalam *
 
 ## Instalasi
 
-### pip install
+### pip install dari GitHub
 
 ```bash
-# Dari direktori proyek
-pip install -e ./python
-
-# Nanti akan build Rust engine otomatis saat run() pertama
+pip install git+https://github.com/ZulferDev/rust-engine.git
 ```
+
+Saat `run()` dipanggil pertama kali, builder akan:
+1. Deteksi platform (x86_64 Linux, ARM64 Linux)
+2. Download **pre-built binary** dari GitHub Releases (~700 KB, 1-2 detik)
+3. Simpan di `~/.cache/rust_backtest/` — persisten untuk runtime berikutnya
+4. Jika download gagal (misal platform tidak didukung), build dari source
 
 ### Google Colab / Kaggle
 
 ```python
-# Cell 1: Clone repo
-!git clone https://github.com/username/rust-engine.git
-%cd rust-engine
+# Satu baris — langsung bisa
+!pip install git+https://github.com/ZulferDev/rust-engine.git
 
-# Cell 2: Install Python package
-!pip install -e ./python
-
-# Cell 3: Import dan gunakan
 from rust_backtest import run
 ```
 
-Saat `run()` dipanggil pertama kali, builder akan:
-1. Cek apakah Rust terinstall → jika tidak, install via rustup
-2. Cek apakah C compiler tersedia → jika tidak, download zig
-3. Build binary Rust
-4. Simpan binary untuk pemakaian berikutnya
+Tidak perlu clone repo, tidak perlu install Rust. Binary di-download otomatis.
 
-### Manual
+### Developer Setup
+
+Untuk kontribusi / development:
 
 ```bash
-# 1. Build Rust binary
+# 1. Clone repo
+git clone git@github.com:ZulferDev/rust-engine.git
+cd rust-engine
+
+# 2. Build Rust binary
 cargo build --release
 
-# 2. Install Python package
+# 3. Install Python package (editable mode)
 pip install -e ./python
 
-# 3. Siap digunakan
+# 4. Test
+python -c "from rust_backtest import run; print('OK')"
 ```
 
 ---
@@ -149,6 +151,7 @@ DataFrame input harus memiliki kolom-kolom berikut (default names):
   - **Long**: TP jika `high >= tp_price`, SL jika `low <= sl_price`
   - **Short**: TP jika `low <= tp_price`, SL jika `high >= sl_price`
 - Exit price = harga TP/SL yang tersentuh
+- Jika TP dan SL kena di bar yang sama, **TP diproses lebih dulu** (konvensi standar)
 
 ### Units
 
@@ -160,12 +163,14 @@ Jumlah unit (saham/kontrak) per trade. Engine akan cek apakah `units * entry_pri
 import pandas as pd
 import numpy as np
 
+close_prices = [100 + i*0.1 + np.random.normal(0,0.1) for i in range(100)]
+
 df = pd.DataFrame({
     "timestamp": pd.date_range("2020-01-01", periods=100, freq="h"),
     "open":   [100 + i*0.1 + np.random.normal(0,0.1) for i in range(100)],
     "high":   [102 + i*0.1 + abs(np.random.normal(0,0.2)) for i in range(100)],
     "low":    [98  + i*0.1 - abs(np.random.normal(0,0.2)) for i in range(100)],
-    "close":  [101 + i*0.1 + np.random.normal(0,0.1) for i in range(100)],
+    "close":  close_prices,
     "volume": np.random.randint(1000, 10000, 100),
     "signal": [1 if i < 50 else -1 for i in range(100)],
     "tp_price": [1.03*c for c in close_prices],  # +3% untuk long, -3% untuk short
@@ -415,6 +420,32 @@ vs Python murni (pandas loop): ~100-1000× lebih lambat.
 
 ---
 
+## Pre-built Binary
+
+**Cara kerja binary distribution:**
+
+1. **Build**: Setiap tag `v*` dipush ke GitHub → GitHub Actions otomatis build binary (`x86_64-unknown-linux-musl`, statically linked)
+2. **Release**: Binary diupload ke GitHub Releases sebagai asset
+3. **Download**: Saat user pertama kali panggil `run()`, `builder.py`:
+   - Deteksi platform (`x86_64` atau `aarch64` Linux)
+   - Cek `~/.cache/rust_backtest/backtest_engine-{target}`
+   - Jika tidak ada, download dari `https://github.com/ZulferDev/rust-engine/releases/download/{version}/backtest_engine-{target}`
+   - Jika download gagal → coba `latest` release → fallback build dari source
+4. **Cache**: Binary disimpan di `~/.cache/rust_backtest/` — persisten antar runtime
+
+**Fallback**: Jika download gagal (platform tidak didukung, no internet), builder akan:
+1. Cek Rust terinstall → jika tidak, install via rustup
+2. Build dari source dengan `cargo build --release`
+
+### GitHub Actions Workflows
+
+| Workflow | Trigger | Fungsi |
+|---|---|---|
+| `build.yml` | Push & PR | `cargo check --release` — verifikasi kompilasi |
+| `release.yml` | Tag `v*` push | Build musl static binary + upload ke GitHub Releases |
+
+---
+
 ## Limitations
 
 | Limitation | Detail |
@@ -432,6 +463,11 @@ vs Python murni (pandas loop): ~100-1000× lebih lambat.
 ## Changelog
 
 ### v0.2.0 (Current)
+- **New**: Pre-built binary distribution via GitHub Releases (download otomatis, ~2 detik)
+- **New**: GitHub Actions — auto-build & release on tag push (`release.yml`)
+- **New**: `~/.cache/rust_backtest/` — binary cache persisten antar runtime
+- **New**: Build check CI on every push (`build.yml`)
+- **Change**: Colab quickstart — `pip install git+...` satu baris, tanpa clone repo
 - **Fix**: Sortino downside deviation formula √(∑min(0,r)²/N) — benar
 - **Fix**: Calmar ratio pakai annualized return
 - **Fix**: Profit factor = 999 untuk all-winning

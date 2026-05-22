@@ -4,11 +4,16 @@
   <p align="center"><b>Rust</b> core loop · <b>Python</b> wrapper · 100–1000× faster than pure Python</p>
 </p>
 
+<p align="center">
+  <a href="https://github.com/ZulferDev/rust-engine/releases"><img src="https://img.shields.io/github/v/release/ZulferDev/rust-engine" alt="Release"></a>
+  <a href="https://github.com/ZulferDev/rust-engine/actions/workflows/release.yml"><img src="https://img.shields.io/github/actions/workflow/status/ZulferDev/rust-engine/release.yml?branch=main" alt="Build"></a>
+</p>
+
 ---
 
 ## Quick Start
 
-```python
+```bash
 pip install git+https://github.com/ZulferDev/rust-engine.git
 ```
 
@@ -41,6 +46,8 @@ result.equity_curve  # DataFrame: equity per bar
 result.stats         # dict: 25+ metrics
 ```
 
+Binary Rust di-download otomatis (pre-built, ~700 KB) — **tidak perlu kompilasi**.
+
 ---
 
 ## Why Rust?
@@ -52,6 +59,19 @@ result.stats         # dict: 25+ metrics
 | Parameter optimization (10k runs) | ~10 hours | ~30 min |
 
 Signal processing stays in Python (pandas/numpy is fast enough). The iteration-heavy backtest loop moves to Rust.
+
+---
+
+## Google Colab / Kaggle
+
+```python
+# Satu baris — langsung bisa
+!pip install git+https://github.com/ZulferDev/rust-engine.git
+
+from rust_backtest import run
+```
+
+Binary di-download otomatis saat `run()` pertama (~2 detik). Tersimpan di cache (`~/.cache/rust_backtest/`) — tidak perlu download ulang tiap runtime restart.
 
 ---
 
@@ -96,20 +116,6 @@ All risk metrics are annualized using actual calendar duration.
 
 ---
 
-## Google Colab / Kaggle
-
-```python
-!git clone https://github.com/ZulferDev/rust-engine.git
-%cd rust-engine
-!pip install -e .
-```
-
-First `run()` call builds the Rust binary automatically.
-
-Or use the quickstart notebook: `examples/colab_quickstart.py`
-
----
-
 ## Configuration
 
 ```python
@@ -119,6 +125,19 @@ result = run(df,
     slippage_pct=0.0005,        # 0.05% slippage on entry
 )
 ```
+
+---
+
+## How It Works
+
+```
+Python (signal, prep) ──CSV──▶ Rust engine ──JSON──▶ Python (result)
+```
+
+- **Build**: Tag `v*` → GitHub Actions build musl static binary → upload ke Release
+- **Install**: `pip install` via git clone repo
+- **Run**: `run()` pertama → download pre-built binary dari GitHub Releases → cache di `~/.cache/`
+- **Fallback**: Jika download gagal, build dari source (Rust harus terinstall)
 
 ---
 
