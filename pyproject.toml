@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rust-backtest"
+version = "0.2.0"
+description = "Fast backtest engine for trading strategy validation, written in Rust"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = [
+    "pandas>=1.5",
+]
+
+[tool.setuptools.packages.find]
+where = ["python"]
+include = ["rust_backtest*"]
