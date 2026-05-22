@@ -44,11 +44,19 @@ jobs:
           pattern: backtest_engine-*
           merge-multiple: true
 
-      - name: "Set executable"
-        run: chmod +x backtest_engine-*
+      - name: "Rename and set executable"
+        run: |
+          for f in backtest_engine*; do
+            if [ -f "$f" ]; then
+              target_name="backtest_engine-x86_64-unknown-linux-musl"
+              [ "$f" != "$target_name" ] && mv "$f" "$target_name"
+              chmod +x "$target_name"
+            fi
+          done
+          ls -la
 
       - name: "Release"
         uses: softprops/action-gh-release@v2
         with:
-          files: backtest_engine-*
+          files: backtest_engine-x86_64-unknown-linux-musl
           generate_release_notes: true
